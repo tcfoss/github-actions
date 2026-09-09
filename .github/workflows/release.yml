@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Patch version without the v prefix, for example 1.0.1'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-tags
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out selected commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Create immutable and floating tags
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Version '$VERSION' must match X.Y.Z"
+            exit 1
+          fi
+
+          major="v${BASH_REMATCH[1]}"
+          minor="v${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+          patch="v$VERSION"
+          commit="$(git rev-parse HEAD)"
+
+          git fetch --tags --force
+
+          if git show-ref --verify --quiet "refs/tags/$patch"; then
+            existing="$(git rev-list -n 1 "$patch")"
+            echo "::error::Immutable tag '$patch' already exists at $existing and cannot be moved"
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$patch" "$commit" -m "Release $patch"
+          git push origin "$patch"
+
+          git tag -f "$minor" "$commit"
+          git tag -f "$major" "$commit"
+          git push --force origin "$minor" "$major"
+
+          echo "Released $patch at $commit"
+          echo "Advanced $minor and $major"
