@@ -1,0 +1,59 @@
+name: Validate Release
+
+on:
+  workflow_call:
+    inputs:
+      branch:
+        description: 'Head branch name, expected to match release/vX.Y.Z[-suffix]'
+        type: string
+        required: true
+      api-url:
+        description: 'Base IssueTracker API URL including the project stub'
+        type: string
+        required: true
+    secrets:
+      issuetracker-api-token:
+        required: true
+
+jobs:
+  validate-release:
+    if: startsWith(inputs.branch, 'release/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Parse release version
+        id: parse-release
+        uses: tcfoss/github-actions/.github/actions/parse-release-version@v1
+        with:
+          branch: ${{ inputs.branch }}
+
+      - name: Validate release
+        uses: tcfoss/github-actions/.github/actions/issuetracker-validate@v1
+        with:
+          api-url: ${{ inputs.api-url }}
+          version: ${{ steps.parse-release.outputs.version }}
+          token: ${{ secrets.issuetracker-api-token }}
+
+      - name: Release notes
+        id: notes
+        uses: tcfoss/github-actions/.github/actions/issuetracker-notes@v1
+        with:
+          api-url: ${{ inputs.api-url }}
+          version: ${{ steps.parse-release.outputs.version }}
+          token: ${{ secrets.issuetracker-api-token }}
+
+      - name: Add release notes to PR
+        uses: tcfoss/github-actions/.github/actions/sticky-pr-comment@v1
+        with:
+          marker: '<!-- release-notes -->'
+          content-file: ${{ steps.notes.outputs.notes-file }}

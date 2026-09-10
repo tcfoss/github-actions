@@ -1,0 +1,52 @@
+name: IssueTracker Release Notes
+description: Fetches Markdown release notes for a release from the IssueTracker API.
+inputs:
+  api-url:
+    description: 'Base API URL including the project stub, e.g. https://host-url/api/project-stub'
+    required: true
+  version:
+    required: true
+  token:
+    required: true
+  work-item-base-url:
+    description: 'Used to construct links to individual work items'
+    required: false
+  release-date:
+    description: 'Used as the releaseDate query param, e.g. 2026-09-09'
+    required: false
+outputs:
+  notes-file:
+    value: ${{ steps.call.outputs.notes_file }}
+runs:
+  using: composite
+  steps:
+    - id: call
+      shell: bash
+      env:
+        API_URL: ${{ inputs.api-url }}
+        VERSION: ${{ inputs.version }}
+        TOKEN: ${{ inputs.token }}
+        RELEASE_DATE: ${{ inputs.release-date }}
+        WORK_ITEM_BASE_URL: ${{ inputs.work-item-base-url }}
+      run: |
+        set -euo pipefail
+
+        base="$API_URL/releases/$VERSION"
+        auth=(-H "Authorization: Bearer $TOKEN")
+
+        query=""
+        sep="?"
+        if [[ -n "$WORK_ITEM_BASE_URL" ]]; then
+          work_item_base_url=$(jq -nr --arg value "$WORK_ITEM_BASE_URL" '$value | @uri')
+          query="$query$sep""baseUrl=$work_item_base_url"
+          sep="&"
+        fi
+        if [[ -n "$RELEASE_DATE" ]]; then
+          release_date=$(jq -nr --arg value "$RELEASE_DATE" '$value | @uri')
+          query="$query$sep""releaseDate=$release_date"
+          sep="&"
+        fi
+
+        curl -sSf "${auth[@]}" -H "Accept: text/markdown" \
+          "$base/notes$query" -o release-notes.md
+        echo "notes_file=release-notes.md" >> "$GITHUB_OUTPUT"

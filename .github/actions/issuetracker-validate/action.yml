@@ -1,0 +1,42 @@
+name: IssueTracker Validate Release
+description: Calls the IssueTracker API to validate that a release's work items are resolved.
+inputs:
+  api-url:
+    description: 'Base API URL including the project stub, e.g. https://host-url/api/project-stub'
+    required: true
+  version:
+    required: true
+  token:
+    required: true
+outputs:
+  is-valid:
+    value: ${{ steps.call.outputs.is_valid }}
+runs:
+  using: composite
+  steps:
+    - id: call
+      shell: bash
+      env:
+        API_URL: ${{ inputs.api-url }}
+        VERSION: ${{ inputs.version }}
+        TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+
+        base="$API_URL/releases/$VERSION"
+        auth=(-H "Authorization: Bearer $TOKEN")
+
+        http=$(curl -sS "${auth[@]}" -H "Accept: application/json" \
+          -o validation.json -w '%{http_code}' "$base/validation")
+        # 200 = valid, 422 = validation failed; anything else is unexpected.
+        if [[ "$http" != "200" && "$http" != "422" ]]; then
+          echo "::error::IssueTracker validation request failed with HTTP $http"
+          cat validation.json
+          exit 1
+        fi
+        valid=$(jq -r '.isValid' validation.json)
+        echo "is_valid=$valid" >> "$GITHUB_OUTPUT"
+        if [[ "$valid" != "true" ]]; then
+          jq -r '.failedWorkItems[] | "- #\(.workItemId) \(.title)"' validation.json >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+        fi

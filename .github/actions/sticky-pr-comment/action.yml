@@ -1,0 +1,41 @@
+name: Sticky PR Comment
+description: Adds or updates a marker-delimited block in the current pull request's description.
+inputs:
+  marker:
+    description: 'HTML comment marker delimiting the block, e.g. "<!-- coverage-summary -->"'
+    required: true
+  content-file:
+    description: 'Path to a file whose contents are placed between the markers'
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/github-script@v7
+      env:
+        CONTENT_FILE: ${{ inputs.content-file }}
+        MARKER: ${{ inputs.marker }}
+      with:
+        script: |
+          const fs = require('fs');
+          const marker = process.env.MARKER;
+          const content = fs.readFileSync(process.env.CONTENT_FILE, 'utf8');
+
+          const { data: pr } = await github.rest.pulls.get({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            pull_number: context.issue.number,
+          });
+
+          const block = `${marker}\n${content}\n${marker}`;
+
+          const body = pr.body ?? '';
+          const updated = body.includes(marker)
+            ? body.replace(new RegExp(`${marker}[\\s\\S]*?${marker}`), block)
+            : `${body}\n\n${block}`.trimStart();
+
+          await github.rest.pulls.update({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            pull_number: context.issue.number,
+            body: updated,
+          });

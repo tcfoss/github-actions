@@ -1,0 +1,57 @@
+name: Coverage
+
+on:
+  workflow_call:
+    inputs:
+      dotnet-version:
+        description: '.NET SDK version to install, e.g. 10.0.x'
+        type: string
+        default: '10.0.x'
+      artifact-pattern:
+        description: 'Glob pattern of test-result artifacts to download and merge'
+        type: string
+        default: 'coverage-*'
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+
+      - name: Download test results
+        uses: actions/download-artifact@v7
+        with:
+          pattern: ${{ inputs.artifact-pattern }}
+          merge-multiple: true
+          path: TestResults
+
+      - name: Install reportgenerator
+        run: dotnet tool install -g dotnet-reportgenerator-globaltool
+
+      - name: Generate coverage report
+        run: |
+          reportgenerator \
+            -reports:"TestResults/**/*.cobertura.xml" \
+            -targetdir:coverage \
+            -reporttypes:"Html;TextSummary;MarkdownSummaryGithub"
+          cat coverage/Summary.txt
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: coverage/
+
+      - name: Add coverage summary to PR
+        uses: tcfoss/github-actions/.github/actions/sticky-pr-comment@v1
+        with:
+          marker: '<!-- coverage-summary -->'
+          content-file: coverage/SummaryGithub.md

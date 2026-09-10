@@ -1,0 +1,55 @@
+name: IssueTracker Resolve Release
+description: Marks a release as resolved through the IssueTracker API.
+inputs:
+  api-url:
+    description: 'Base API URL including the project stub, e.g. https://host-url/api/project-stub'
+    required: true
+  version:
+    required: true
+  token:
+    required: true
+  status:
+    description: 'Used as the status query param on resolve'
+    required: false
+  release-url:
+    description: 'Link to a public-facing release page'
+    required: false
+  work-item-base-url:
+    description: 'Used to construct links to individual work items'
+    required: false
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        API_URL: ${{ inputs.api-url }}
+        VERSION: ${{ inputs.version }}
+        TOKEN: ${{ inputs.token }}
+        RELEASE_URL: ${{ inputs.release-url }}
+        STATUS: ${{ inputs.status }}
+        WORK_ITEM_BASE_URL: ${{ inputs.work-item-base-url }}
+      run: |
+        set -euo pipefail
+
+        base="$API_URL/releases/$VERSION"
+        auth=(-H "Authorization: Bearer $TOKEN")
+
+        query=""
+        sep="?"
+        if [[ -n "$STATUS" ]]; then
+          status=$(jq -nr --arg value "$STATUS" '$value | @uri')
+          query="$query$sep""status=$status"
+          sep="&"
+        fi
+        if [[ -n "$RELEASE_URL" ]]; then
+          release_url=$(jq -nr --arg value "$RELEASE_URL" '$value | @uri')
+          query="$query$sep""releaseUrl=$release_url"
+          sep="&"
+        fi
+        if [[ -n "$WORK_ITEM_BASE_URL" ]]; then
+          work_item_base_url=$(jq -nr --arg value "$WORK_ITEM_BASE_URL" '$value | @uri')
+          query="$query$sep""baseUrl=$work_item_base_url"
+          sep="&"
+        fi
+
+        curl -sSf -X POST "${auth[@]}" "$base/resolve$query"

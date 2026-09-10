@@ -1,0 +1,34 @@
+name: Parse Release Version
+description: Parses a version from a release/vX.Y.Z[-suffix] branch name, or uses an explicit override.
+inputs:
+  branch:
+    description: 'Branch name to parse, e.g. release/v1.2.3'
+    required: true
+  version-override:
+    description: 'If set, used as the version instead of parsing the branch name'
+    required: false
+outputs:
+  version:
+    value: ${{ steps.parse.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - id: parse
+      shell: bash
+      env:
+        BRANCH: ${{ inputs.branch }}
+        VERSION_OVERRIDE: ${{ inputs.version-override }}
+      run: |
+        set -euo pipefail
+
+        if [[ -n "$VERSION_OVERRIDE" ]]; then
+          echo "version=$VERSION_OVERRIDE" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        if [[ "$BRANCH" =~ ^release/v([0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?)$ ]]; then
+          echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+        else
+          echo "::error::Branch name '$BRANCH' does not match release/vX.Y.Z[-suffix]"
+          exit 1
+        fi

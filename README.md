@@ -4,32 +4,31 @@ Reusable GitHub Actions shared by TcfOss repositories.
 
 ## IssueTracker release API
 
-The IssueTracker composite action validates, retrieves notes for, and resolves releases through the IssueTracker API.
+Three composite actions validate, fetch notes for, and resolve releases through the IssueTracker API.
 
-Use it from another repository with the major floating tag:
+Use `issuetracker-validate` to check that a release's work items are resolved:
 
 ```yaml
 - name: Validate release
-  uses: tcfoss/github-actions/.github/actions/issuetracker@v1
+  uses: tcfoss/github-actions/.github/actions/issuetracker-validate@v1
   with:
-    command: validate
     api-url: ${{ vars.ISSUETRACKER_API_URL }}
     version: ${{ steps.parse-release.outputs.version }}
     token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
 ```
 
-Fetch release notes and use the generated Markdown file in a later step:
+Use `issuetracker-notes` to fetch release notes and use the generated Markdown file in a later step. `release-url` links to the GitHub release page; `work-item-base-url` is used to construct links to individual work items. Both, along with `release-date`, are optional:
 
 ```yaml
 - name: Fetch release notes
   id: notes
-  uses: tcfoss/github-actions/.github/actions/issuetracker@v1
+  uses: tcfoss/github-actions/.github/actions/issuetracker-notes@v1
   with:
-    command: notes
     api-url: ${{ vars.ISSUETRACKER_API_URL }}
     version: ${{ steps.parse-release.outputs.version }}
     token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
-    release-url: ${{ vars.ISSUETRACKER_BASE_URL }}
+    release-url: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.parse-release.outputs.version }}
+    release-date: 2026-09-09
 
 - name: Create GitHub release
   uses: softprops/action-gh-release@v2
@@ -38,19 +37,75 @@ Fetch release notes and use the generated Markdown file in a later step:
     body_path: ${{ steps.notes.outputs.notes-file }}
 ```
 
-Resolve a release after publishing its artifacts. The optional `status` input is sent to the IssueTracker API as the resolve status:
+Use `issuetracker-resolve` to resolve a release after publishing its artifacts. The optional `status`, `release-url`, and `work-item-base-url` inputs are sent to the IssueTracker API as query parameters:
 
 ```yaml
 - name: Resolve release
-  uses: tcfoss/github-actions/.github/actions/issuetracker@v1
+  uses: tcfoss/github-actions/.github/actions/issuetracker-resolve@v1
   with:
-    command: resolve
     api-url: ${{ vars.ISSUETRACKER_API_URL }}
     version: ${{ steps.parse-release.outputs.version }}
     token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
     status: Released
     release-url: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.parse-release.outputs.version }}
 ```
+
+## Parsing a release version
+
+`parse-release-version` parses a version out of a `release/vX.Y.Z[-suffix]` branch name, or passes through an explicit `version-override` (e.g. for `workflow_dispatch` inputs) without needing a branch name at all:
+
+```yaml
+- name: Parse release version
+  id: parse-release
+  uses: tcfoss/github-actions/.github/actions/parse-release-version@v1
+  with:
+    branch: ${{ github.head_ref }}
+    version-override: ${{ github.event_name == 'workflow_dispatch' && inputs.version || '' }}
+```
+
+## Sticky PR comments
+
+`sticky-pr-comment` adds or updates a marker-delimited block in the current pull request's description, replacing the block on subsequent runs instead of duplicating it:
+
+```yaml
+- name: Add coverage summary to PR
+  uses: tcfoss/github-actions/.github/actions/sticky-pr-comment@v1
+  with:
+    marker: '<!-- coverage-summary -->'
+    content-file: coverage/SummaryGithub.md
+```
+
+## Reusable workflows
+
+`validate-release.yml` parses the version from a release branch, validates it against the IssueTracker API, and posts the release notes to the PR description via `sticky-pr-comment`. It no-ops (skips) unless `branch` starts with `release/`:
+
+```yaml
+validate-release:
+  if: startsWith(github.head_ref, 'release/')
+  uses: tcfoss/github-actions/.github/workflows/validate-release.yml@v1
+  permissions:
+    contents: read
+    pull-requests: write
+  with:
+    branch: ${{ github.head_ref }}
+    api-url: ${{ vars.ISSUETRACKER_API_URL }}
+  secrets:
+    issuetracker-api-token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
+```
+
+`coverage.yml` downloads `coverage-*` test-result artifacts uploaded by earlier jobs, generates an HTML/Markdown report with ReportGenerator, uploads it as a `coverage` artifact, and posts the summary to the PR via `sticky-pr-comment`:
+
+```yaml
+coverage:
+  needs: unit-tests
+  uses: tcfoss/github-actions/.github/workflows/coverage.yml@v1
+  permissions:
+    contents: read
+    pull-requests: write
+```
+
+
+## Versioning
 
 This repository uses three tag levels:
 
@@ -66,9 +121,7 @@ For production workflows that require reproducible action code, pin the action t
 
 ```yaml
 # v1.0.0
-uses: tcfoss/github-actions/.github/actions/issuetracker@0123456789abcdef0123456789abcdef01234567
+uses: tcfoss/github-actions/.github/actions/issuetracker-validate@0123456789abcdef0123456789abcdef01234567
 ```
 
 Releases are created manually from the GitHub Actions tab with the `Release` workflow. Enter the patch version without the `v` prefix, for example `1.0.1`, and select the commit to release.
-
-Supported commands are `validate`, `notes`, and `resolve`. The `notes` and `resolve` commands accept `release-url`; `resolve` also accepts `status`.
