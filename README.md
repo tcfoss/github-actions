@@ -77,10 +77,19 @@ Use `issuetracker-resolve` to resolve a release after publishing its artifacts. 
 
 ## Reusable workflows
 
-`validate-release.yml` parses the version from a release branch, validates it against the IssueTracker API, and posts the release notes to the PR description via `sticky-pr-comment`. It no-ops (skips) unless `branch` starts with `release/`:
+`validate-release.yml` parses the version from a release branch, validates it against the IssueTracker API, and posts the release notes to the PR description via `sticky-pr-comment`. It no-ops (skips) unless `branch` starts with `release/`. The optional `release-date` input is forwarded to the release notes fetch:
 
 ```yaml
+today:
+  runs-on: ubuntu-latest
+  outputs:
+    date: ${{ steps.today.outputs.date }}
+  steps:
+    - id: today
+      run: echo "date=$(date -u +%F)" >> "$GITHUB_OUTPUT"
+
 validate-release:
+  needs: today
   if: startsWith(github.head_ref, 'release/')
   uses: tcfoss/github-actions/.github/workflows/validate-release.yml@v1
   permissions:
@@ -89,6 +98,7 @@ validate-release:
   with:
     branch: ${{ github.head_ref }}
     api-url: ${{ vars.ISSUETRACKER_API_URL }}
+    release-date: ${{ needs.today.outputs.date }}
   secrets:
     issuetracker-api-token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
 ```

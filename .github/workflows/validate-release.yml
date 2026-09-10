@@ -11,6 +11,10 @@ on:
         description: 'Base IssueTracker API URL including the project stub'
         type: string
         required: true
+      release-date:
+        description: 'Used as the release date when generating release notes for a not-yet-released version (format: 2026-09-09)'
+        type: string
+        required: false
     secrets:
       issuetracker-api-token:
         required: true
@@ -51,6 +55,7 @@ jobs:
           api-url: ${{ inputs.api-url }}
           version: ${{ steps.parse-release.outputs.version }}
           token: ${{ secrets.issuetracker-api-token }}
+          release-date: ${{ inputs.release-date }}
 
       - name: Add release notes to PR
         uses: tcfoss/github-actions/.github/actions/sticky-pr-comment@v1
