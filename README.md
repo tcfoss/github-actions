@@ -17,7 +17,7 @@ Use `issuetracker-validate` to check that a release's work items are resolved:
     token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
 ```
 
-Use `issuetracker-notes` to fetch release notes and use the generated Markdown file in a later step. `release-url` links to the GitHub release page; `work-item-base-url` is used to construct links to individual work items. Both, along with `release-date`, are optional:
+Use `issuetracker-notes` to fetch release notes and use the generated Markdown file in a later step. `work-item-base-url` is used to construct links to individual work items. It, along with `release-date` are optional:
 
 ```yaml
 - name: Fetch release notes
@@ -27,11 +27,10 @@ Use `issuetracker-notes` to fetch release notes and use the generated Markdown f
     api-url: ${{ vars.ISSUETRACKER_API_URL }}
     version: ${{ steps.parse-release.outputs.version }}
     token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
-    release-url: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.parse-release.outputs.version }}
     release-date: 2026-09-09
 
 - name: Create GitHub release
-  uses: softprops/action-gh-release@v2
+  uses: softprops/action-gh-release@v3
   with:
     tag_name: v${{ steps.parse-release.outputs.version }}
     body_path: ${{ steps.notes.outputs.notes-file }}
