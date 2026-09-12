@@ -11,6 +11,15 @@ inputs:
 outputs:
   is-valid:
     value: ${{ steps.call.outputs.is_valid }}
+  failed-work-items:
+    description: JSON array of work items that caused validation to fail.
+    value: ${{ steps.call.outputs.failed_work_items }}
+  release-not-active:
+    description: Whether validation failed because the release is not active.
+    value: ${{ steps.call.outputs.release_not_active }}
+  has-no-work-items:
+    description: Whether validation failed because the release has no work items.
+    value: ${{ steps.call.outputs.has_no_work_items }}
 runs:
   using: composite
   steps:
@@ -35,8 +44,20 @@ runs:
           exit 1
         fi
         valid=$(jq -r '.isValid' validation.json)
+        failed_work_items=$(jq -c '.failedWorkItems // []' validation.json)
+        release_not_active=$(jq -r '.releaseNotActive // false' validation.json)
+        has_no_work_items=$(jq -r '.hasNoWorkItems // false' validation.json)
         echo "is_valid=$valid" >> "$GITHUB_OUTPUT"
+        echo "failed_work_items=$failed_work_items" >> "$GITHUB_OUTPUT"
+        echo "release_not_active=$release_not_active" >> "$GITHUB_OUTPUT"
+        echo "has_no_work_items=$has_no_work_items" >> "$GITHUB_OUTPUT"
         if [[ "$valid" != "true" ]]; then
+          if [[ "$release_not_active" == "true" ]]; then
+            echo "::error::IssueTracker validation failed because the release is not active"
+          fi
+          if [[ "$has_no_work_items" == "true" ]]; then
+            echo "::error::IssueTracker validation failed because the release has no work items"
+          fi
           jq -r '.failedWorkItems[] | "- #\(.workItemId) \(.title)"' validation.json >> "$GITHUB_STEP_SUMMARY"
           exit 1
         fi

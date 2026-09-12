@@ -10,12 +10,16 @@ Use `issuetracker-validate` to check that a release's work items are resolved:
 
 ```yaml
 - name: Validate release
+  id: validate
+  continue-on-error: true
   uses: tcfoss/github-actions/.github/actions/issuetracker-validate@v1
   with:
     api-url: ${{ vars.ISSUETRACKER_API_URL }}
     version: ${{ steps.parse-release.outputs.version }}
     token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
 ```
+
+The action outputs `is-valid`, `failed-work-items`, `release-not-active`, and `has-no-work-items`. `failed-work-items` is a JSON array containing unresolved work items; the final two outputs identify the other documented validation failure modes. Use `continue-on-error: true` when a later step needs to read outputs after validation fails.
 
 Use `issuetracker-notes` to fetch release notes and use the generated Markdown file in a later step. `work-item-base-url` is used to construct links to individual work items. It, along with `release-date` are optional:
 
