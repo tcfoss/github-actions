@@ -1,0 +1,90 @@
+name: IssueTracker Validate Work Items
+description: Validates whether work items can be resolved through the IssueTracker API.
+inputs:
+  api-url:
+    description: 'Base API URL including the project stub, e.g. https://host-url/api/project-stub'
+    required: true
+  work-item-ids:
+    description: 'JSON array of work item IDs, e.g. [123,456]'
+    required: true
+  token:
+    required: true
+  target-status:
+    description: 'Status to validate the work items against'
+    required: false
+outputs:
+  is-valid:
+    value: ${{ steps.call.outputs.is_valid }}
+  work-items:
+    description: JSON array containing each work item's release note and validation errors.
+    value: ${{ steps.call.outputs.work_items }}
+  target-status-error:
+    description: Validation error for the requested target status, if any.
+    value: ${{ steps.call.outputs.target_status_error }}
+  summary-file:
+    description: Path to a Markdown summary suitable for a pull request description or comment.
+    value: ${{ steps.call.outputs.summary_file }}
+runs:
+  using: composite
+  steps:
+    - id: call
+      shell: bash
+      env:
+        API_URL: ${{ inputs.api-url }}
+        WORK_ITEM_IDS: ${{ inputs.work-item-ids }}
+        TOKEN: ${{ inputs.token }}
+        TARGET_STATUS: ${{ inputs.target-status }}
+      run: |
+        set -euo pipefail
+
+        if ! jq -e 'type == "array" and length > 0 and all(.[]; type == "number" and (floor == .))' \
+          <<< "$WORK_ITEM_IDS" > /dev/null; then
+          echo "::error::work-item-ids must be a non-empty JSON array of integers"
+          exit 1
+        fi
+
+        query=$(jq -r 'map("workItemIds=" + (. | tostring | @uri)) | join("&")' <<< "$WORK_ITEM_IDS")
+        if [[ -n "$TARGET_STATUS" ]]; then
+          target_status=$(jq -nr --arg value "$TARGET_STATUS" '$value | @uri')
+          query="$query&targetStatus=$target_status"
+        fi
+
+        auth=(-H "Authorization: Bearer $TOKEN")
+        http=$(curl -sS "${auth[@]}" -H "Accept: application/json" \
+          -o work-item-validation.json -w '%{http_code}' \
+          "$API_URL/work-items/validate-resolution?$query")
+        # 200 = valid, 422 = validation failed; anything else is unexpected.
+        if [[ "$http" != "200" && "$http" != "422" ]]; then
+          echo "::error::IssueTracker work item validation request failed with HTTP $http"
+          cat work-item-validation.json
+          exit 1
+        fi
+
+        valid=$(jq -r '.isValid' work-item-validation.json)
+        work_items=$(jq -c '.workItems // []' work-item-validation.json)
+        target_status_error=$(jq -r '.targetStatusError // ""' work-item-validation.json)
+        echo "is_valid=$valid" >> "$GITHUB_OUTPUT"
+        echo "work_items=$work_items" >> "$GITHUB_OUTPUT"
+        echo "target_status_error=$target_status_error" >> "$GITHUB_OUTPUT"
+        echo "summary_file=work-item-validation.md" >> "$GITHUB_OUTPUT"
+
+        jq -r '
+          def text: tostring | gsub("\\r"; "") | gsub("\\n"; " ");
+          "## Work item resolution validation\n",
+          (if .targetStatusError then
+            "**Target status error:** " + (.targetStatusError | text) + "\n"
+          else empty end),
+          (.workItems[] |
+            "### #\(.workItemId) \(.title | text)\n",
+            (if .releaseNote then .releaseNote + "\n" else "_No release note provided._\n" end),
+            (if (.validationErrors | length) > 0 then
+              "**Validation errors:**\n" + (.validationErrors | map("- " + text) | join("\n")) + "\n"
+            else "**Validation:** Passed\n" end)
+          )
+        ' work-item-validation.json > work-item-validation.md
+        cat work-item-validation.md >> "$GITHUB_STEP_SUMMARY"
+
+        if [[ "$valid" != "true" ]]; then
+          echo "::error::One or more work items cannot be resolved"
+          exit 1
+        fi

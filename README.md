@@ -2,9 +2,9 @@
 
 Reusable GitHub Actions shared by TcfOss repositories.
 
-## IssueTracker release API
+## IssueTracker API
 
-Three composite actions validate, fetch notes for, and resolve releases through the IssueTracker API.
+Six composite actions parse work item references and validate, fetch notes for, or resolve releases and individual work items through the IssueTracker API.
 
 Use `issuetracker-validate` to check that a release's work items are resolved:
 
@@ -53,6 +53,50 @@ Use `issuetracker-resolve` to resolve a release after publishing its artifacts. 
     release-url: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.parse-release.outputs.version }}
 ```
 
+Use `issuetracker-validate-work-items` to check whether a set of work items can be resolved. `work-item-ids` must be a non-empty JSON array of integers. The action outputs `is-valid`, `work-items`, `target-status-error`, and `summary-file`. It exits with an error when validation fails, after writing all outputs and a Markdown summary:
+
+```yaml
+- name: Validate work items
+  id: validate-work-items
+  continue-on-error: true
+  uses: tcfoss/github-actions/.github/actions/issuetracker-validate-work-items@v1
+  with:
+    api-url: ${{ vars.ISSUETRACKER_API_URL }}
+    work-item-ids: '[123,456]'
+    target-status: Resolved
+    token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
+
+- name: Add validation to PR description
+  uses: tcfoss/github-actions/.github/actions/sticky-pr-comment@v1
+  with:
+    marker: '<!-- work-item-validation -->'
+    content-file: ${{ steps.validate-work-items.outputs.summary-file }}
+```
+
+Use `issuetracker-resolve-work-items` to resolve the same set of work items. It returns the API result through `is-valid`, `work-items`, and `target-status-error`, and fails when the API reports that any item could not be resolved:
+
+```yaml
+- name: Resolve work items
+  uses: tcfoss/github-actions/.github/actions/issuetracker-resolve-work-items@v1
+  with:
+    api-url: ${{ vars.ISSUETRACKER_API_URL }}
+    work-item-ids: '[123,456]'
+    target-status: Resolved
+    token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
+```
+
+Use `issuetracker-work-items-from-pr-description` to collect unique work item IDs from a pull request description containing directives such as `Resolves IT #123` or `Closes IT456`. Matching is case-insensitive, and IDs are returned in first-seen order. The action outputs `work-item-ids` as a JSON array and `has-work-items` as a boolean string:
+
+```yaml
+- name: Find referenced work items
+  id: work-item-references
+  uses: tcfoss/github-actions/.github/actions/issuetracker-work-items-from-pr-description@v1
+  with:
+    description: ${{ github.event.pull_request.body }}
+```
+
+The parser ignores content inside the `<!-- work-item-validation -->` markers used for generated validation results.
+
 ## Parsing a release version
 
 `parse-release-version` parses a version out of a `release/vX.Y.Z[-suffix]` branch name, or passes through an explicit `version-override` (e.g. for `workflow_dispatch` inputs) without needing a branch name at all:
@@ -79,6 +123,32 @@ Use `issuetracker-resolve` to resolve a release after publishing its artifacts. 
 ```
 
 ## Reusable workflows
+
+`validate-pr-work-items.yml` extracts IssueTracker references from a pull request description, validates them, and adds the resulting Markdown to the description. Validation failures are written to the description before the workflow reports failure. Add this caller workflow to a consuming repository:
+
+```yaml
+name: Validate PR Work Items
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, synchronize, ready_for_review]
+
+jobs:
+  validate-work-items:
+    if: github.event.sender.type != 'Bot'
+    uses: tcfoss/github-actions/.github/workflows/validate-pr-work-items.yml@v1
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      pull-request-description: ${{ github.event.pull_request.body }}
+      api-url: ${{ vars.ISSUETRACKER_API_URL }}
+      target-status: Resolved
+    secrets:
+      issuetracker-api-token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
+```
+
+The bot guard prevents description updates made by automation from starting another validation run. GitHub also suppresses most events caused by the repository's `GITHUB_TOKEN`, but the explicit guard keeps the workflow safe when a different token is later used.
 
 `validate-release.yml` parses the version from a release branch, validates it against the IssueTracker API, and posts the release notes to the PR description via `sticky-pr-comment`. It no-ops (skips) unless `branch` starts with `release/`. The optional `release-date` input is forwarded to the release notes fetch:
 

@@ -1,0 +1,49 @@
+name: IssueTracker Work Items From PR Description
+description: Parses IssueTracker work item IDs referenced by resolves or closes directives in a pull request description.
+inputs:
+  description:
+    description: 'Pull request description to parse'
+    required: false
+  ignored-marker:
+    description: 'Marker delimiting generated content that should not be parsed'
+    default: '<!-- work-item-validation -->'
+outputs:
+  work-item-ids:
+    description: JSON array of unique work item IDs in first-seen order.
+    value: ${{ steps.parse.outputs.work-item-ids }}
+  has-work-items:
+    description: Whether any IssueTracker work item references were found.
+    value: ${{ steps.parse.outputs.has-work-items }}
+runs:
+  using: composite
+  steps:
+    - id: parse
+      uses: actions/github-script@v9
+      env:
+        PR_DESCRIPTION: ${{ inputs.description }}
+        IGNORED_MARKER: ${{ inputs.ignored-marker }}
+      with:
+        script: |
+          const marker = process.env.IGNORED_MARKER;
+          const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const description = marker
+            ? process.env.PR_DESCRIPTION.replace(
+                new RegExp(`${escapedMarker}[\\s\\S]*?${escapedMarker}`, 'g'),
+                '',
+              )
+            : process.env.PR_DESCRIPTION;
+
+          const workItemIds = [];
+          const seenWorkItemIds = new Set();
+          const directive = /\b(?:resolves|closes)\s+IT\s*#?\s*(\d+)\b/gi;
+
+          for (const match of description.matchAll(directive)) {
+            const workItemId = Number(match[1]);
+            if (!seenWorkItemIds.has(workItemId)) {
+              seenWorkItemIds.add(workItemId);
+              workItemIds.push(workItemId);
+            }
+          }
+
+          core.setOutput('work-item-ids', JSON.stringify(workItemIds));
+          core.setOutput('has-work-items', String(workItemIds.length > 0));
