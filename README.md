@@ -150,6 +150,29 @@ jobs:
 
 The bot guard prevents description updates made by automation from starting another validation run. GitHub also suppresses most events caused by the repository's `GITHUB_TOKEN`, but the explicit guard keeps the workflow safe when a different token is later used.
 
+`resolve-pr-work-items.yml` extracts IssueTracker references from a pull request description and submits a request to the IssueTracker API to mark them as resolved. Add this caller workflow to a consuming repository:
+
+```yaml
+name: Resolve PR Work Items
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  resolve-work-items:
+    if: github.event.pull_request.merged == true
+    uses: tcfoss/github-actions/.github/workflows/resolve-pr-work-items.yml@v1
+    permissions:
+      contents: read
+    with:
+      pull-request-description: ${{ github.event.pull_request.body }}
+      api-url: ${{ vars.ISSUETRACKER_API_URL }}
+      target-status: Resolved
+    secrets:
+      issuetracker-api-token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
+```
+
 `validate-release.yml` parses the version from a release branch, validates it against the IssueTracker API, and posts the release notes to the PR description via `sticky-pr-comment`. It no-ops (skips) unless `branch` starts with `release/`. The optional `release-date` input is forwarded to the release notes fetch:
 
 ```yaml

@@ -1,0 +1,44 @@
+name: Resolve PR Work Items
+
+on:
+  workflow_call:
+    inputs:
+      pull-request-description:
+        description: 'Pull request description containing IssueTracker work item references'
+        type: string
+        required: false
+      api-url:
+        description: 'Base IssueTracker API URL including the project stub'
+        type: string
+        required: true
+      target-status:
+        description: 'Status to validate the work items against'
+        type: string
+        required: false
+    secrets:
+      issuetracker-api-token:
+        required: true
+
+jobs:
+  validate-work-items:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Find referenced work items
+        id: work-item-references
+        uses: tcfoss/github-actions/.github/actions/issuetracker-work-items-from-pr-description@v1
+        with:
+          description: ${{ inputs.pull-request-description }}
+
+      - name: Resolve referenced work items
+        id: resolve-work-items
+        if: steps.work-item-references.outputs.has-work-items == 'true'
+        uses: tcfoss/github-actions/.github/actions/issuetracker-resolve-work-items@v1
+        with:
+          api-url: ${{ inputs.api-url }}
+          work-item-ids: ${{ steps.work-item-references.outputs.work-item-ids }}
+          target-status: ${{ inputs.target-status }}
+          token: ${{ secrets.issuetracker-api-token }}
