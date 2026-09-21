@@ -91,6 +91,20 @@
             }
           },
           {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workItemStatus",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "projectStub",
             "in": "path",
             "required": true,
@@ -179,6 +193,13 @@
           },
           {
             "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "workItemStatus",
             "in": "query",
             "schema": {
               "type": "string"
@@ -512,6 +533,18 @@
             "items": {
               "$ref": "#/components/schemas/FailedWorkItem"
             }
+          },
+          "statusError": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "workItemStatusError": {
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "isValid": {
             "type": "boolean"

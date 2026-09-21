@@ -5,11 +5,16 @@ inputs:
     description: 'Base API URL including the project stub, e.g. https://host-url/api/project-stub'
     required: true
   version:
+    description: 'Version of the release to resolve'
     required: true
   token:
+    description: 'API token for authenticating with the IssueTracker API'
     required: true
   status:
     description: 'Used as the status query param on resolve'
+    required: false
+  work-item-status:
+    description: 'Status to set on the work items when resolving the release'
     required: false
   release-url:
     description: 'Link to a public-facing release page'
@@ -28,6 +33,7 @@ runs:
         RELEASE_URL: ${{ inputs.release-url }}
         STATUS: ${{ inputs.status }}
         WORK_ITEM_BASE_URL: ${{ inputs.work-item-base-url }}
+        WORK_ITEM_STATUS: ${{ inputs.work-item-status }}
       run: |
         set -euo pipefail
 
@@ -39,6 +45,11 @@ runs:
         if [[ -n "$STATUS" ]]; then
           status=$(jq -nr --arg value "$STATUS" '$value | @uri')
           query="$query$sep""status=$status"
+          sep="&"
+        fi
+        if [[ -n "$WORK_ITEM_STATUS" ]]; then
+          work_item_status=$(jq -nr --arg value "$WORK_ITEM_STATUS" '$value | @uri')
+          query="$query$sep""workItemStatus=$work_item_status"
           sep="&"
         fi
         if [[ -n "$RELEASE_URL" ]]; then

@@ -6,7 +6,7 @@ Reusable GitHub Actions shared by TcfOss repositories.
 
 Six composite actions parse work item references and validate, fetch notes for, or resolve releases and individual work items through the IssueTracker API.
 
-Use `issuetracker-validate` to check that a release's work items are resolved:
+Use `issuetracker-validate` to check that a release's work items are resolved. The optional `status` and `work-item-status` inputs validate the release and its work items against the supplied statuses:
 
 ```yaml
 - name: Validate release
@@ -16,6 +16,8 @@ Use `issuetracker-validate` to check that a release's work items are resolved:
   with:
     api-url: ${{ vars.ISSUETRACKER_API_URL }}
     version: ${{ steps.parse-release.outputs.version }}
+    status: Released
+    work-item-status: Resolved
     token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
 ```
 
@@ -40,7 +42,7 @@ Use `issuetracker-notes` to fetch release notes and use the generated Markdown f
     body_path: ${{ steps.notes.outputs.notes-file }}
 ```
 
-Use `issuetracker-resolve` to resolve a release after publishing its artifacts. The optional `status`, `release-url`, and `work-item-base-url` inputs are sent to the IssueTracker API as query parameters:
+Use `issuetracker-resolve` to resolve a release after publishing its artifacts. The optional `status`, `work-item-status`, `release-url`, and `work-item-base-url` inputs are sent to the IssueTracker API as query parameters:
 
 ```yaml
 - name: Resolve release
@@ -50,6 +52,7 @@ Use `issuetracker-resolve` to resolve a release after publishing its artifacts. 
     version: ${{ steps.parse-release.outputs.version }}
     token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
     status: Released
+    work-item-status: Resolved
     release-url: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.parse-release.outputs.version }}
 ```
 
@@ -173,7 +176,7 @@ jobs:
       issuetracker-api-token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
 ```
 
-`validate-release.yml` parses the version from a release branch, validates it against the IssueTracker API, and posts the release notes to the PR description via `sticky-pr-comment`. It no-ops (skips) unless `branch` starts with `release/`. The optional `release-date` input is forwarded to the release notes fetch:
+`validate-release.yml` parses the version from a release branch, validates it against the IssueTracker API, and posts the release notes to the PR description via `sticky-pr-comment`. It no-ops (skips) unless `branch` starts with `release/`. The optional `release-date` input is forwarded to the release notes fetch; `status` and `work-item-status` are forwarded to release validation:
 
 ```yaml
 today:
@@ -195,6 +198,8 @@ validate-release:
     branch: ${{ github.head_ref }}
     api-url: ${{ vars.ISSUETRACKER_API_URL }}
     release-date: ${{ needs.today.outputs.date }}
+    status: Released
+    work-item-status: Resolved
   secrets:
     issuetracker-api-token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
 ```

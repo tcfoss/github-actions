@@ -5,8 +5,16 @@ inputs:
     description: 'Base API URL including the project stub, e.g. https://host-url/api/project-stub'
     required: true
   version:
+    description: 'Version of the release to validate'
     required: true
+  status:
+    description: 'Status to validate the release against'
+    required: false
+  work-item-status:
+    description: 'Status to validate the work items against'
+    required: false
   token:
+    description: 'API token for authenticating with the IssueTracker API'
     required: true
 outputs:
   is-valid:
@@ -29,14 +37,29 @@ runs:
         API_URL: ${{ inputs.api-url }}
         VERSION: ${{ inputs.version }}
         TOKEN: ${{ inputs.token }}
+        STATUS: ${{ inputs.status }}
+        WORK_ITEM_STATUS: ${{ inputs.work-item-status }}
       run: |
         set -euo pipefail
 
         base="$API_URL/releases/$VERSION"
         auth=(-H "Authorization: Bearer $TOKEN")
 
+        query=""
+        sep="?"
+        if [[ -n "$STATUS" ]]; then
+          status=$(jq -nr --arg value "$STATUS" '$value | @uri')
+          query="$query$sep""status=$status"
+          sep="&"
+        fi
+        if [[ -n "$WORK_ITEM_STATUS" ]]; then
+          work_item_status=$(jq -nr --arg value "$WORK_ITEM_STATUS" '$value | @uri')
+          query="$query$sep""workItemStatus=$work_item_status"
+          sep="&"
+        fi
+
         http=$(curl -sS "${auth[@]}" -H "Accept: application/json" \
-          -o validation.json -w '%{http_code}' "$base/validation")
+          -o validation.json -w '%{http_code}' "$base/validation$query")
         # 200 = valid, 422 = validation failed; anything else is unexpected.
         if [[ "$http" != "200" && "$http" != "422" ]]; then
           echo "::error::IssueTracker validation request failed with HTTP $http"

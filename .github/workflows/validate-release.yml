@@ -15,6 +15,14 @@ on:
         description: 'Used as the release date when generating release notes for a not-yet-released version (format: 2026-09-09)'
         type: string
         required: false
+      status:
+        description: 'Status to validate the release against'
+        type: string
+        required: false
+      work-item-status:
+        description: 'Status to validate the work items against'
+        type: string
+        required: false
     secrets:
       issuetracker-api-token:
         required: true
@@ -47,6 +55,8 @@ jobs:
           api-url: ${{ inputs.api-url }}
           version: ${{ steps.parse-release.outputs.version }}
           token: ${{ secrets.issuetracker-api-token }}
+          status: ${{ inputs.status }}
+          work-item-status: ${{ inputs.work-item-status }}
 
       - name: Release notes
         id: notes
