@@ -13,6 +13,9 @@ inputs:
   work-item-status:
     description: 'Status to validate the work items against'
     required: false
+  work-items-to-be-resolved:
+    description: 'JSON array of IDs of work items that will be resolved between validation and completion (they must be resolved separately from release resolution)'
+    required: false
   token:
     description: 'API token for authenticating with the IssueTracker API'
     required: true
@@ -39,6 +42,7 @@ runs:
         TOKEN: ${{ inputs.token }}
         STATUS: ${{ inputs.status }}
         WORK_ITEM_STATUS: ${{ inputs.work-item-status }}
+        WORK_ITEMS_TO_BE_RESOLVED: ${{ inputs.work-items-to-be-resolved }}
       run: |
         set -euo pipefail
 
@@ -52,9 +56,16 @@ runs:
           query="$query$sep""status=$status"
           sep="&"
         fi
+
         if [[ -n "$WORK_ITEM_STATUS" ]]; then
           work_item_status=$(jq -nr --arg value "$WORK_ITEM_STATUS" '$value | @uri')
           query="$query$sep""workItemStatus=$work_item_status"
+          sep="&"
+        fi
+
+        if [[ -n "$WORK_ITEMS_TO_BE_RESOLVED" ]]; then
+          work_items_to_be_resolved=$(jq -r 'map("workItemsToBeResolved=" + (. | tostring | @uri)) | join("&")' <<< "$WORK_ITEMS_TO_BE_RESOLVED")
+          query="$query$sep$work_items_to_be_resolved"
           sep="&"
         fi
 

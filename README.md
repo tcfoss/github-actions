@@ -6,7 +6,7 @@ Reusable GitHub Actions shared by TcfOss repositories.
 
 Six composite actions parse work item references and validate, fetch notes for, or resolve releases and individual work items through the IssueTracker API.
 
-Use `issuetracker-validate` to check that a release's work items are resolved. The optional `status` and `work-item-status` inputs validate the release and its work items against the supplied statuses:
+Use `issuetracker-validate` to check that a release's work items are resolved. The optional `status`, `work-item-status`, and `work-items-to-be-resolved` inputs validate the release and its work items against the supplied statuses and allow you to account for work items that will be resolved after validation but before completion:
 
 ```yaml
 - name: Validate release
@@ -18,6 +18,7 @@ Use `issuetracker-validate` to check that a release's work items are resolved. T
     version: ${{ steps.parse-release.outputs.version }}
     status: Released
     work-item-status: Resolved
+    work-items-to-be-resolved: '[123,456]'
     token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
 ```
 
@@ -176,7 +177,7 @@ jobs:
       issuetracker-api-token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
 ```
 
-`validate-release.yml` parses the version from a release branch, validates it against the IssueTracker API, and posts the release notes to the PR description via `sticky-pr-comment`. It no-ops (skips) unless `branch` starts with `release/`. The optional `release-date` input is forwarded to the release notes fetch; `status` and `work-item-status` are forwarded to release validation:
+`validate-release.yml` parses the version from a release branch, validates it against the IssueTracker API, and posts the release notes to the PR description via `sticky-pr-comment`. It no-ops (skips) unless `branch` starts with `release/`. The optional `release-date` input is forwarded to the release notes fetch; `status`, `work-item-status`, and `work-items-to-be-resolved` are forwarded to release validation:
 
 ```yaml
 today:
@@ -200,6 +201,7 @@ validate-release:
     release-date: ${{ needs.today.outputs.date }}
     status: Released
     work-item-status: Resolved
+    work-items-to-be-resolved: '[123,456]'
   secrets:
     issuetracker-api-token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
 ```

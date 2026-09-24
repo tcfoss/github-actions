@@ -23,6 +23,10 @@ on:
         description: 'Status to validate the work items against'
         type: string
         required: false
+      work-items-to-be-resolved:
+        description: 'JSON array of issue IDs that will be resolved after validation but before completion'
+        type: string
+        required: false
     secrets:
       issuetracker-api-token:
         required: true
@@ -57,6 +61,7 @@ jobs:
           token: ${{ secrets.issuetracker-api-token }}
           status: ${{ inputs.status }}
           work-item-status: ${{ inputs.work-item-status }}
+          work-items-to-be-resolved: ${{ inputs.work-items-to-be-resolved }}
 
       - name: Release notes
         id: notes
