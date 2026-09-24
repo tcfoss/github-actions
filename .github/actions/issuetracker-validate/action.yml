@@ -64,16 +64,36 @@ runs:
         fi
 
         if [[ -n "$WORK_ITEMS_TO_BE_RESOLVED" ]]; then
-          work_items_to_be_resolved=$(jq -r 'map("workItemsToBeResolved=" + (. | tostring | @uri)) | join("&")' <<< "$WORK_ITEMS_TO_BE_RESOLVED")
-          query="$query$sep$work_items_to_be_resolved"
-          sep="&"
+          if ! jq -e 'type == "array" and all(.[]; type == "number" or (type == "string" and test("^-?(?:0|[1-9]\\d*)$")))' \
+            <<< "$WORK_ITEMS_TO_BE_RESOLVED" > /dev/null; then
+            echo "::error::work-items-to-be-resolved must be a JSON array of integer IDs"
+            exit 1
+          fi
+
+          if jq -e 'length == 0' <<< "$WORK_ITEMS_TO_BE_RESOLVED" > /dev/null; then
+            echo "work-items-to-be-resolved is empty; skipping the query parameter"
+          else
+            work_items_to_be_resolved=$(jq -r 'map("workItemsToBeResolved=" + (. | tostring | @uri)) | join("&")' <<< "$WORK_ITEMS_TO_BE_RESOLVED")
+            query="$query$sep$work_items_to_be_resolved"
+            sep="&"
+          fi
         fi
 
-        http=$(curl -sS "${auth[@]}" -H "Accept: application/json" \
-          -o validation.json -w '%{http_code}' "$base/validation$query")
+        curl_err=$(mktemp)
+        if ! http=$(curl -sS "${auth[@]}" -H "Accept: application/json" \
+          -o validation.json -w '%{http_code}' "$base/validation$query" 2> "$curl_err"); then
+          echo "::error::IssueTracker validation request failed while calling $base/validation$query"
+          cat "$curl_err"
+          exit 1
+        fi
         # 200 = valid, 422 = validation failed; anything else is unexpected.
         if [[ "$http" != "200" && "$http" != "422" ]]; then
           echo "::error::IssueTracker validation request failed with HTTP $http"
+          cat validation.json
+          exit 1
+        fi
+        if ! jq -e '.' validation.json > /dev/null; then
+          echo "::error::IssueTracker validation returned invalid JSON"
           cat validation.json
           exit 1
         fi

@@ -128,7 +128,7 @@ The parser ignores content inside the `<!-- work-item-validation -->` markers us
 
 ## Reusable workflows
 
-`validate-pr-work-items.yml` extracts IssueTracker references from a pull request description, validates them, and adds the resulting Markdown to the description. Validation failures are written to the description before the workflow reports failure. Add this caller workflow to a consuming repository:
+`validate-pr-work-items.yml` extracts IssueTracker references from a pull request description, validates them, and adds the resulting Markdown to the description. Validation failures are written to the description before the workflow reports failure. The reusable workflow also exposes `work-item-ids` and `has-work-items` to downstream jobs that may need to branch on the extracted results. Add this caller workflow to a consuming repository:
 
 ```yaml
 name: Validate PR Work Items

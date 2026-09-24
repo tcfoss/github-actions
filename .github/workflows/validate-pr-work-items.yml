@@ -15,12 +15,22 @@ on:
         description: 'Status to validate the work items against'
         type: string
         required: false
+    outputs:
+      work-item-ids:
+        description: 'JSON array of IssueTracker work item IDs extracted from the PR description'
+        value: ${{ jobs.validate-work-items.outputs.work-item-ids }}
+      has-work-items:
+        description: 'Whether the PR description contains any IssueTracker work item IDs'
+        value: ${{ jobs.validate-work-items.outputs.has-work-items }}
     secrets:
       issuetracker-api-token:
         required: true
 
 jobs:
   validate-work-items:
+    outputs:
+      work-item-ids: ${{ steps.work-item-references.outputs.work-item-ids }}
+      has-work-items: ${{ steps.work-item-references.outputs.has-work-items }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
