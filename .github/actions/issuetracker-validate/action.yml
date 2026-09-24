@@ -127,7 +127,7 @@ runs:
             if [[ -n "$work_item_status_error" && "$work_item_status_error" != "null" ]]; then
               echo "- Work item status error: $work_item_status_error"
             fi
-            jq -r '(.failedWorkItems // [])[]? | "- #\(.workItemId) \(.title)"' validation.json
+            jq -r '(.failedWorkItems // [])[]? | "- #\(.workItemId) \(.title)\n  - Not resolved: \(.notResolved)\n  - Missing release note: \(.missingReleaseNote)"' validation.json
           } > "$summary_file"
 
           cat "$summary_file" >> "$GITHUB_STEP_SUMMARY"
