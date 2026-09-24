@@ -31,6 +31,9 @@ outputs:
   has-no-work-items:
     description: Whether validation failed because the release has no work items.
     value: ${{ steps.call.outputs.has_no_work_items }}
+  summary-file:
+    description: Path to a Markdown summary suitable for a pull request comment.
+    value: ${{ steps.call.outputs.summary_file }}
 runs:
   using: composite
   steps:
@@ -101,17 +104,40 @@ runs:
         failed_work_items=$(jq -c '.failedWorkItems // []' validation.json)
         release_not_active=$(jq -r '.releaseNotActive // false' validation.json)
         has_no_work_items=$(jq -r '.hasNoWorkItems // false' validation.json)
+        status_error=$(jq -r '.statusError // ""' validation.json)
+        work_item_status_error=$(jq -r '.workItemStatusError // ""' validation.json)
+        summary_file=""
         echo "is_valid=$valid" >> "$GITHUB_OUTPUT"
         echo "failed_work_items=$failed_work_items" >> "$GITHUB_OUTPUT"
         echo "release_not_active=$release_not_active" >> "$GITHUB_OUTPUT"
         echo "has_no_work_items=$has_no_work_items" >> "$GITHUB_OUTPUT"
         if [[ "$valid" != "true" ]]; then
+          summary_file="release-validation.md"
+          {
+            echo "## Release validation failed"
+            if [[ "$release_not_active" == "true" ]]; then
+              echo "- The release is not active."
+            fi
+            if [[ "$has_no_work_items" == "true" ]]; then
+              echo "- The release has no work items."
+            fi
+            if [[ -n "$status_error" && "$status_error" != "null" ]]; then
+              echo "- Status error: $status_error"
+            fi
+            if [[ -n "$work_item_status_error" && "$work_item_status_error" != "null" ]]; then
+              echo "- Work item status error: $work_item_status_error"
+            fi
+            jq -r '(.failedWorkItems // [])[]? | "- #\(.workItemId) \(.title)"' validation.json
+          } > "$summary_file"
+
+          cat "$summary_file" >> "$GITHUB_STEP_SUMMARY"
+          echo "summary_file=$summary_file" >> "$GITHUB_OUTPUT"
+
           if [[ "$release_not_active" == "true" ]]; then
             echo "::error::IssueTracker validation failed because the release is not active"
           fi
           if [[ "$has_no_work_items" == "true" ]]; then
             echo "::error::IssueTracker validation failed because the release has no work items"
           fi
-          jq -r '.failedWorkItems[] | "- #\(.workItemId) \(.title)"' validation.json >> "$GITHUB_STEP_SUMMARY"
           exit 1
         fi

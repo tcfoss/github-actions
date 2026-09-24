@@ -54,6 +54,8 @@ jobs:
           branch: ${{ inputs.branch }}
 
       - name: Validate release
+        id: validate-release
+        continue-on-error: true
         uses: tcfoss/github-actions/.github/actions/issuetracker-validate@v1
         with:
           api-url: ${{ inputs.api-url }}
@@ -62,6 +64,18 @@ jobs:
           status: ${{ inputs.status }}
           work-item-status: ${{ inputs.work-item-status }}
           work-items-to-be-resolved: ${{ inputs.work-items-to-be-resolved }}
+
+      - name: Add validation results to PR description
+        if: steps.validate-release.outputs.summary-file != ''
+        uses: tcfoss/github-actions/.github/actions/sticky-pr-comment@v1
+        with:
+          marker: '<!-- release-validation -->'
+          content-file: ${{ steps.validate-release.outputs.summary-file }}
+
+      - name: Fail when validation fails
+        if: steps.validate-release.outcome == 'failure'
+        shell: bash
+        run: exit 1
 
       - name: Release notes
         id: notes
