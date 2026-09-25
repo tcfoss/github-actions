@@ -18,7 +18,26 @@ runs:
         script: |
           const fs = require('fs');
           const marker = process.env.MARKER;
-          const content = fs.readFileSync(process.env.CONTENT_FILE, 'utf8');
+
+          const contentFile = process.env.CONTENT_FILE ?? '';
+          if (contentFile === '') {
+            core.info('No content file specified.');
+            return;
+          }
+
+          let content = '';
+          if (fs.existsSync(contentFile)) {
+            content = fs.readFileSync(contentFile, 'utf8');
+          }
+          else {
+            core.info(`Content file "${contentFile}" not found.`);
+          }
+
+          if (content.trim().length === 0) {
+            core.info('Content is empty. Marker will be removed if present.');
+          }
+
+          const escapedMarker = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
           const { data: pr } = await github.rest.pulls.get({
             owner: context.repo.owner,
@@ -26,12 +45,26 @@ runs:
             pull_number: context.issue.number,
           });
 
-          const block = `${marker}\n${content}\n${marker}`;
-
           const body = pr.body ?? '';
-          const updated = body.includes(marker)
-            ? body.replace(new RegExp(`${marker}[\\s\\S]*?${marker}`), block)
-            : `${body}\n\n${block}`.trimStart();
+          const markerPattern = new RegExp(`${escapedMarker}[\\s\\S]*?${escapedMarker}`);
+
+          let updated = body;
+          if (content.trim().length === 0) {
+            updated = body.replace(markerPattern, '').trim();
+          }
+          else if (body.includes(marker)) {
+            updated = body.replace(markerPattern, `${marker}\n${content}\n${marker}`);
+          }
+          else {
+            updated = `${body}\n\n${marker}\n${content}\n${marker}`.trimStart();
+          }
+
+          core.debug(`Updating pull request body:\n${updated}`);
+
+          if (updated === body) {
+            core.info('No changes to the pull request body.');
+            return;
+          }
 
           await github.rest.pulls.update({
             owner: context.repo.owner,
