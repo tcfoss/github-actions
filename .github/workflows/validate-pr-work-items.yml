@@ -55,7 +55,6 @@ jobs:
           token: ${{ secrets.issuetracker-api-token }}
 
       - name: Add validation results to PR description
-        if: steps.validate-work-items.outputs.summary-file != ''
         uses: tcfoss/github-actions/.github/actions/sticky-pr-comment@v1
         with:
           marker: '<!-- work-item-validation -->'
