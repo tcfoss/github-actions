@@ -1,0 +1,28 @@
+name: .NET Lint
+
+on:
+  workflow_call:
+    inputs:
+      solution:
+        description: 'Solution or project to format'
+        type: string
+        required: true
+      dotnet-version:
+        description: '.NET SDK version to install'
+        type: string
+        default: '10.0.x'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+      - name: Restore
+        run: dotnet restore "${{ inputs.solution }}"
+      - name: Verify formatting
+        run: dotnet format "${{ inputs.solution }}" --verify-no-changes --severity info --no-restore

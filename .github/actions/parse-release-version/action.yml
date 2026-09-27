@@ -22,6 +22,10 @@ runs:
         set -euo pipefail
 
         if [[ -n "$VERSION_OVERRIDE" ]]; then
+          if [[ ! "$VERSION_OVERRIDE" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
+            echo "::error::Version '$VERSION_OVERRIDE' must match X.Y.Z[-suffix]"
+            exit 1
+          fi
           echo "version=$VERSION_OVERRIDE" >> "$GITHUB_OUTPUT"
           exit 0
         fi

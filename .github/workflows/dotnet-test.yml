@@ -1,0 +1,70 @@
+name: .NET Test
+
+on:
+  workflow_call:
+    inputs:
+      solution:
+        description: 'Solution to restore and build'
+        type: string
+        required: true
+      project:
+        description: 'Test project to execute'
+        type: string
+        required: true
+      name:
+        description: 'Coverage artifact name suffix'
+        type: string
+        required: true
+      dotnet-version:
+        description: '.NET SDK version to install'
+        type: string
+        default: '10.0.x'
+      msbuild-properties:
+        description: 'Additional MSBuild properties'
+        type: string
+        required: false
+      integration:
+        description: 'Whether to disable Testcontainers Ryuk'
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TESTCONTAINERS_RYUK_DISABLED: ${{ inputs.integration && 'true' || '' }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ inputs.dotnet-version }}
+      - name: Restore
+        run: dotnet restore "${{ inputs.solution }}"
+      - name: Build
+        run: dotnet build "${{ inputs.solution }}" --no-restore --configuration Release
+      - name: Test
+        shell: bash
+        env:
+          MSBUILD_PROPERTIES: ${{ inputs.msbuild-properties }}
+        run: |
+          set -euo pipefail
+          properties=()
+          if [[ -n "$MSBUILD_PROPERTIES" ]]; then
+            read -r -a properties <<< "$MSBUILD_PROPERTIES"
+          fi
+          command=(dotnet test "${{ inputs.project }}" --no-build --configuration Release --results-directory TestResults)
+          if (( ${#properties[@]} > 0 )); then
+            command+=("${properties[@]}")
+          fi
+          "${command[@]}"
+      - name: Normalize coverage reports
+        uses: tcfoss/github-actions/.github/actions/normalize-coverage@v1
+        with:
+          name: ${{ inputs.name }}
+      - name: Upload test results
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ inputs.name }}
+          path: CoverageResults/*.cobertura.xml
