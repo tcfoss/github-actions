@@ -20,13 +20,12 @@ runs:
           const marker = process.env.MARKER;
 
           const contentFile = process.env.CONTENT_FILE ?? '';
-          if (contentFile === '') {
-            core.info('No content file specified.');
-            return;
-          }
 
           let content = '';
-          if (fs.existsSync(contentFile)) {
+          if (contentFile === '') {
+            core.info('No content file specified.');
+          }
+          else if (fs.existsSync(contentFile)) {
             content = fs.readFileSync(contentFile, 'utf8');
           }
           else {
