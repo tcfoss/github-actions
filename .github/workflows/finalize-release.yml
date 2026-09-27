@@ -1,0 +1,65 @@
+name: Finalize Release
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+      api-url:
+        description: 'Base IssueTracker API URL including the project stub'
+        type: string
+        required: true
+      artifact-name:
+        description: 'Name of a workflow artifact to download before creating the release'
+        type: string
+        required: false
+      files:
+        description: 'Newline-delimited globs of files to attach to the GitHub release'
+        type: string
+        required: false
+      release-status:
+        type: string
+        default: Released
+      work-item-status:
+        type: string
+        default: Released
+    secrets:
+      issuetracker-api-token:
+        required: true
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Download release assets
+        if: inputs.artifact-name != ''
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ inputs.artifact-name }}
+      - name: Resolve release
+        uses: tcfoss/github-actions/.github/actions/issuetracker-resolve@v1
+        with:
+          api-url: ${{ inputs.api-url }}
+          version: ${{ inputs.version }}
+          token: ${{ secrets.issuetracker-api-token }}
+          status: ${{ inputs.release-status }}
+          work-item-status: ${{ inputs.work-item-status }}
+          release-url: https://github.com/${{ github.repository }}/releases/tag/v${{ inputs.version }}
+      - name: Release notes
+        id: notes
+        uses: tcfoss/github-actions/.github/actions/issuetracker-notes@v1
+        with:
+          api-url: ${{ inputs.api-url }}
+          version: ${{ inputs.version }}
+          token: ${{ secrets.issuetracker-api-token }}
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v${{ inputs.version }}
+          body_path: ${{ steps.notes.outputs.notes-file }}
+          files: ${{ inputs.files }}
+          fail_on_unmatched_files: ${{ inputs.files != '' }}

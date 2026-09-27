@@ -1,0 +1,31 @@
+name: Normalize Coverage
+description: Copies generated Cobertura reports to stable artifact names.
+inputs:
+  name:
+    description: 'Coverage artifact name'
+    required: true
+  source-directory:
+    description: 'Directory containing test results'
+    required: false
+    default: TestResults
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        COVERAGE_NAME: ${{ inputs.name }}
+        SOURCE_DIRECTORY: ${{ inputs.source-directory }}
+      run: |
+        set -euo pipefail
+        mkdir -p CoverageResults
+        shopt -s globstar nullglob
+        files=("$SOURCE_DIRECTORY"/**/*.cobertura.*.xml)
+        if (( ${#files[@]} == 0 )); then
+          echo "::error::No coverage reports found in $SOURCE_DIRECTORY"
+          exit 1
+        fi
+        index=0
+        for file in "${files[@]}"; do
+          index=$((index + 1))
+          cp "$file" "CoverageResults/coverage-${COVERAGE_NAME}-${index}.cobertura.xml"
+        done

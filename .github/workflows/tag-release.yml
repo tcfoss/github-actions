@@ -1,0 +1,50 @@
+name: Tag Release
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+      force-retag:
+        type: boolean
+        default: false
+    secrets:
+      TAGGER_APP_CLIENT_ID:
+        required: true
+      TAGGER_APP_PRIVATE_KEY:
+        required: true
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.TAGGER_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TAGGER_APP_PRIVATE_KEY }}
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Tag release
+        env:
+          VERSION: ${{ inputs.version }}
+          FORCE_RETAG: ${{ inputs.force-retag }}
+        run: |
+          set -euo pipefail
+          version="v$VERSION"
+          if [[ "$FORCE_RETAG" == "true" ]]; then
+            git push origin ":refs/tags/$version" || true
+            git tag -d "$version" 2>/dev/null || true
+          fi
+          git tag -a "$version" -m "Release $version"
+          git push origin "$version"

@@ -1,0 +1,31 @@
+name: Setup Poetry
+description: Setup Poetry for the project
+inputs:
+  python-version:
+    description: Python version
+    required: false
+    default: '3.12'
+  working-directory:
+    description: Directory containing pyproject.toml
+    required: false
+    default: .
+  install-args:
+    description: Additional arguments for poetry install
+    required: false
+    default: '--with dev'
+runs:
+  using: composite
+  steps:
+    # setup-python's poetry cache requires poetry to already be on PATH
+    - shell: bash
+      run: pipx install poetry
+    - uses: actions/setup-python@v7
+      with:
+        python-version: ${{ inputs.python-version }}
+        cache: poetry
+        cache-dependency-path: ${{ inputs.working-directory }}/poetry.lock
+    - shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        INSTALL_ARGS: ${{ inputs.install-args }}
+      run: poetry install $INSTALL_ARGS
