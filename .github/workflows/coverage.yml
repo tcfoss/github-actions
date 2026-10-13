@@ -66,9 +66,9 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: inputs.upload-to-codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ secrets.codecov-token }}
           files: coverage/Cobertura.xml
           disable_search: true
-          fail_ci_if_error: true
+          fail_ci_if_error: false
