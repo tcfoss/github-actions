@@ -16,6 +16,9 @@ on:
         type: boolean
         default: false
     secrets:
+      reportgenerator-license:
+        description: 'Optional ReportGenerator PRO license key'
+        required: false
       codecov-token:
         description: 'Codecov repository upload token'
         required: false
@@ -45,6 +48,8 @@ jobs:
         run: dotnet tool install -g dotnet-reportgenerator-globaltool
 
       - name: Generate coverage report
+        env:
+          REPORTGENERATOR_LICENSE: ${{ secrets.reportgenerator-license }}
         run: |
           reportgenerator \
             -reports:"TestResults/**/*.cobertura.xml" \

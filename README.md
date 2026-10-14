@@ -208,6 +208,8 @@ validate-release:
 
 `coverage.yml` downloads `coverage-*` test-result artifacts uploaded by earlier jobs, generates HTML/Markdown and merged Cobertura reports with ReportGenerator, uploads them as a `coverage` artifact, and posts the summary to the PR via `sticky-pr-comment`:
 
+Optionally pass a ReportGenerator PRO license key as the `reportgenerator-license` secret. It is exposed through `REPORTGENERATOR_LICENSE` only during report generation. Omit the secret to continue using ReportGenerator without a PRO license:
+
 ```yaml
 coverage:
   needs: unit-tests
@@ -215,6 +217,8 @@ coverage:
   permissions:
     contents: read
     pull-requests: write
+  secrets:
+    reportgenerator-license: ${{ secrets.REPORTGENERATOR_LICENSE }}
 ```
 
 Set the boolean `upload-to-codecov` input to `true` only when all test suites have run. It defaults to `false`, so partial runs still generate reports without uploading to Codecov. When enabled, the workflow uploads `coverage/Cobertura.xml` and fails if the upload fails. Pass the repository's `CODECOV_TOKEN` secret as `codecov-token` when required by Codecov; this secret is optional for repositories that support tokenless uploads.
