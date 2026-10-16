@@ -27,6 +27,14 @@ on:
         description: 'Whether to disable Testcontainers Ryuk'
         type: boolean
         default: false
+      upload-coverage-filter-inputs:
+        description: 'Upload raw OpenCover reports and their matching Release assemblies/PDBs for optional coverage filtering'
+        type: boolean
+        default: false
+      filter-symbols-root:
+        description: 'Root directory containing source projects whose assemblies should be uploaded'
+        type: string
+        default: src
 
 jobs:
   test:
@@ -68,3 +76,62 @@ jobs:
         with:
           name: coverage-${{ inputs.name }}
           path: CoverageResults/*.cobertura.xml
+
+      - name: Stage coverage filter inputs
+        if: inputs.upload-coverage-filter-inputs
+        env:
+          FILTER_SYMBOLS_ROOT: ${{ inputs.filter-symbols-root }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import shutil
+          import xml.etree.ElementTree as ET
+
+          reports = sorted(Path("TestResults").glob("**/coverage.opencover.*.xml"))
+          if not reports:
+              raise SystemExit("No OpenCover reports found to prepare for coverage filtering.")
+
+          symbols_root = Path(os.environ["FILTER_SYMBOLS_ROOT"])
+          projects = {project.stem: project for project in symbols_root.rglob("*.csproj")}
+          destination = Path("CoverageFilterSymbols")
+          destination.mkdir(parents=True, exist_ok=True)
+          module_names = set()
+          for report in reports:
+              root = ET.parse(report).getroot()
+              if root.tag != "CoverageSession":
+                  raise SystemExit(f"Expected OpenCover CoverageSession in {report}")
+              module_names.update(
+                  Path((module.text or "").replace("\\", "/")).name
+                  for module in root.findall("./Modules/Module/ModulePath")
+                  if module.text
+              )
+
+          for module_name in sorted(module_names):
+              project = projects.get(Path(module_name).stem)
+              if project is None:
+                  raise SystemExit(f"No source project found for OpenCover module {module_name} under {symbols_root}")
+              project_output = project.parent / "bin" / "Release"
+              assemblies = sorted(project_output.rglob(module_name))
+              if len(assemblies) != 1:
+                  raise SystemExit(
+                      f"Expected one direct Release assembly for {module_name}; found {len(assemblies)} under {project_output}"
+                  )
+              assembly = assemblies[0]
+              pdb = assembly.with_suffix(".pdb")
+              if not pdb.is_file():
+                  raise SystemExit(f"Matching PDB is missing for OpenCover module {module_name}: {pdb}")
+              shutil.copy2(assembly, destination / assembly.name)
+              shutil.copy2(pdb, destination / pdb.name)
+          PY
+
+      - name: Upload coverage filter inputs
+        if: inputs.upload-coverage-filter-inputs
+        uses: actions/upload-artifact@v7
+        with:
+          name: filter-inputs-${{ inputs.name }}
+          if-no-files-found: error
+          path: |
+            TestResults/**/coverage.opencover.*.xml
+            CoverageFilterSymbols/*.dll
+            CoverageFilterSymbols/*.pdb
