@@ -94,7 +94,13 @@ jobs:
           artifact_root = Path("FilterInputs")
           executable = Path("UnreachableCoverageFilter/TcfOss.UnreachableCoverageFilter").resolve()
           workspace = Path.cwd()
-          artifacts = sorted(path for path in artifact_root.iterdir() if path.is_dir())
+          if (artifact_root / "TestResults").is_dir() and (artifact_root / "CoverageFilterSymbols").is_dir():
+              artifacts = [artifact_root]
+          else:
+              artifacts = sorted(
+                path for path in artifact_root.iterdir()
+                if path.is_dir() and (path / "TestResults").is_dir() and (path / "CoverageFilterSymbols").is_dir()
+              )
           if not artifacts:
               raise SystemExit("No filter-input artifacts were downloaded.")
 
@@ -123,7 +129,7 @@ jobs:
                   assembly = stage / module_name
                   pdb = assembly.with_suffix(".pdb")
                   if not assembly.is_file() or not pdb.is_file():
-                    raise SystemExit(f"Staged Release DLL/PDB pair is missing for OpenCover module {module_name} in {stage}")
+                      raise SystemExit(f"Staged Release DLL/PDB pair is missing for OpenCover module {module_name} in {stage}")
 
               output = Path("FilteredCoverage") / artifact.name
               command = [
