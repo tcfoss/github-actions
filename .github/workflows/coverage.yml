@@ -162,7 +162,7 @@ jobs:
           reportgenerator \
             -reports:"$reports" \
             -targetdir:coverage \
-            -reporttypes:"Html;TextSummary;MarkdownSummaryGithub;Cobertura"
+            -reporttypes:"TextSummary;MarkdownSummaryGithub;Cobertura"
           cat coverage/Summary.txt
 
       - name: Upload coverage artifact
