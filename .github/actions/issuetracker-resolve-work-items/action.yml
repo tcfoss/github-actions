@@ -21,6 +21,9 @@ outputs:
   target-status-error:
     description: Validation error for the requested target status, if any.
     value: ${{ steps.call.outputs.target_status_error }}
+  summary-file:
+    description: Path to a Markdown summary suitable for a pull request description or comment.
+    value: ${{ steps.call.outputs.summary_file }}
 runs:
   using: composite
   steps:
@@ -63,10 +66,25 @@ runs:
         echo "is_valid=$valid" >> "$GITHUB_OUTPUT"
         echo "work_items=$work_items" >> "$GITHUB_OUTPUT"
         echo "target_status_error=$target_status_error" >> "$GITHUB_OUTPUT"
+        echo "summary_file=work-item-resolution.md" >> "$GITHUB_OUTPUT"
+
+        jq -r '
+          def text: tostring | gsub("\\r"; "") | gsub("\\n"; " ");
+          "## Work item resolution\n",
+          (if ((.targetStatusError // "") | length) > 0 then
+            "**Target status error:** " + (.targetStatusError | text) + "\n"
+          else empty end),
+          ((.workItems // [])[] |
+            "### #\(.workItemId) \(.title | text)\n",
+            (if .releaseNote then .releaseNote + "\n" else "_No release note provided._\n" end),
+            (if (.validationErrors | length) > 0 then
+              "**Validation errors:**\n" + (.validationErrors | map("- " + text) | join("\n")) + "\n"
+            else "**Resolution:** Passed\n" end)
+          )
+        ' work-item-resolution.json > work-item-resolution.md
+        cat work-item-resolution.md >> "$GITHUB_STEP_SUMMARY"
 
         if [[ "$valid" != "true" ]]; then
           echo "::error::One or more work items could not be resolved"
-          jq -r '.workItems[] | select((.validationErrors | length) > 0) | "- #\(.workItemId) \(.title): \(.validationErrors | join("; "))"' \
-            work-item-resolution.json >> "$GITHUB_STEP_SUMMARY"
           exit 1
         fi

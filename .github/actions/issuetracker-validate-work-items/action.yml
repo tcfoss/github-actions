@@ -71,7 +71,7 @@ runs:
         jq -r '
           def text: tostring | gsub("\\r"; "") | gsub("\\n"; " ");
           "## Work item resolution validation\n",
-          (if .targetStatusError then
+          (if ((.targetStatusError // "") | length) > 0 then
             "**Target status error:** " + (.targetStatusError | text) + "\n"
           else empty end),
           (.workItems[] |

@@ -12,7 +12,7 @@ on:
         type: string
         required: true
       target-status:
-        description: 'Status to validate the work items against'
+        description: 'Status to assign to the work items'
         type: string
         required: false
     secrets:
@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      pull-requests: write
 
     steps:
       - name: Find referenced work items
@@ -35,9 +36,22 @@ jobs:
       - name: Resolve referenced work items
         id: resolve-work-items
         if: steps.work-item-references.outputs.has-work-items == 'true'
+        continue-on-error: true
         uses: tcfoss/github-actions/.github/actions/issuetracker-resolve-work-items@v1
         with:
           api-url: ${{ inputs.api-url }}
           work-item-ids: ${{ steps.work-item-references.outputs.work-item-ids }}
           target-status: ${{ inputs.target-status }}
           token: ${{ secrets.issuetracker-api-token }}
+
+      - name: Add resolution results to PR description
+        if: steps.work-item-references.outputs.has-work-items == 'true'
+        uses: tcfoss/github-actions/.github/actions/sticky-pr-comment@v1
+        with:
+          marker: '<!-- work-item-validation -->'
+          content-file: ${{ steps.resolve-work-items.outputs.summary-file }}
+
+      - name: Fail when resolution fails
+        if: steps.resolve-work-items.outcome == 'failure'
+        shell: bash
+        run: exit 1

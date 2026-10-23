@@ -24,7 +24,7 @@ on:
         type: string
         required: false
       work-items-to-be-resolved:
-        description: 'JSON array of issue IDs that will be resolved after validation but before completion'
+        description: 'JSON array of work item IDs that will be resolved after validation; their tasks must already be resolved or removed'
         type: string
         required: false
     secrets:

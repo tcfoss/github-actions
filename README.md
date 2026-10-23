@@ -6,7 +6,7 @@ Reusable GitHub Actions shared by TcfOss repositories.
 
 Six composite actions parse work item references and validate, fetch notes for, or resolve releases and individual work items through the IssueTracker API.
 
-Use `issuetracker-validate` to check that a release's work items are resolved. The optional `status`, `work-item-status`, and `work-items-to-be-resolved` inputs validate the release and its work items against the supplied statuses and allow you to account for work items that will be resolved after validation but before completion:
+Use `issuetracker-validate` to check that a release's work items are resolved and their tasks are Resolved or Removed. The optional `status`, `work-item-status`, and `work-items-to-be-resolved` inputs validate the release and its work items against the supplied statuses and allow you to account for work items that will be resolved after validation but before completion. Their tasks must already be Resolved or Removed; listing a work item does not bypass task validation:
 
 ```yaml
 - name: Validate release
@@ -22,7 +22,7 @@ Use `issuetracker-validate` to check that a release's work items are resolved. T
     token: ${{ secrets.ISSUETRACKER_API_TOKEN }}
 ```
 
-The action outputs `is-valid`, `failed-work-items`, `release-not-active`, and `has-no-work-items`. `failed-work-items` is a JSON array containing unresolved work items; the final two outputs identify the other documented validation failure modes. Use `continue-on-error: true` when a later step needs to read outputs after validation fails.
+The action outputs `is-valid`, `failed-work-items`, `release-not-active`, `has-no-work-items`, and `summary-file`. `failed-work-items` includes work items blocked by their state, required release notes, or unfinished tasks. Each item's `unfinishedTaskCount` is shown in the Markdown report, defaulting to zero for older API responses. Use `continue-on-error: true` when a later step needs to read outputs after validation fails.
 
 Use `issuetracker-notes` to fetch release notes and use the generated Markdown file in a later step. `work-item-base-url` is used to construct links to individual work items. It, along with `release-date` are optional:
 
@@ -57,7 +57,9 @@ Use `issuetracker-resolve` to resolve a release after publishing its artifacts. 
     release-url: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.parse-release.outputs.version }}
 ```
 
-Use `issuetracker-validate-work-items` to check whether a set of work items can be resolved. `work-item-ids` must be a non-empty JSON array of integers. The action outputs `is-valid`, `work-items`, `target-status-error`, and `summary-file`. It exits with an error when validation fails, after writing all outputs and a Markdown summary:
+Release resolution exposes `is-valid`, `failed-work-items`, and `summary-file`. HTTP 400 and 422 validation responses produce a Markdown report in the job summary, including unfinished-task counts and status errors. The action still fails when resolution is rejected; `finalize-release.yml` therefore stops before creating the GitHub release. Use `continue-on-error: true` when a later step needs the report. Successful HTTP 204 responses do not require a JSON body.
+
+Use `issuetracker-validate-work-items` to check whether a set of work items can be resolved. `work-item-ids` must be a non-empty JSON array of integers. The action outputs `is-valid`, `work-items`, `target-status-error`, and `summary-file`. It exits with an error when validation fails, after writing all outputs and a Markdown summary. All API validation messages, including unfinished-task blockers, are included:
 
 ```yaml
 - name: Validate work items
@@ -77,7 +79,7 @@ Use `issuetracker-validate-work-items` to check whether a set of work items can 
     content-file: ${{ steps.validate-work-items.outputs.summary-file }}
 ```
 
-Use `issuetracker-resolve-work-items` to resolve the same set of work items. It returns the API result through `is-valid`, `work-items`, and `target-status-error`, and fails when the API reports that any item could not be resolved:
+Use `issuetracker-resolve-work-items` to resolve the same set of work items. It returns the API result through `is-valid`, `work-items`, `target-status-error`, and `summary-file`, and fails when the API reports that any item could not be resolved. The Markdown report includes target-status errors and each item's validation errors, including task blockers, in both the summary file and the job summary:
 
 ```yaml
 - name: Resolve work items
@@ -154,7 +156,7 @@ jobs:
 
 The bot guard prevents description updates made by automation from starting another validation run. GitHub also suppresses most events caused by the repository's `GITHUB_TOKEN`, but the explicit guard keeps the workflow safe when a different token is later used.
 
-`resolve-pr-work-items.yml` extracts IssueTracker references from a pull request description and submits a request to the IssueTracker API to mark them as resolved. Add this caller workflow to a consuming repository:
+`resolve-pr-work-items.yml` extracts IssueTracker references from a pull request description and submits a request to the IssueTracker API to mark them as resolved. It updates the generated work-item validation block with the resolution report before reporting failure. Callers must grant `pull-requests: write` as well as `contents: read`. Add this caller workflow to a consuming repository:
 
 ```yaml
 name: Resolve PR Work Items
@@ -169,6 +171,7 @@ jobs:
     uses: tcfoss/github-actions/.github/workflows/resolve-pr-work-items.yml@v1
     permissions:
       contents: read
+      pull-requests: write
     with:
       pull-request-description: ${{ github.event.pull_request.body }}
       api-url: ${{ vars.ISSUETRACKER_API_URL }}

@@ -1,5 +1,5 @@
 name: IssueTracker Validate Release
-description: Calls the IssueTracker API to validate that a release's work items are resolved.
+description: Calls the IssueTracker API to validate that a release's work items and tasks are resolved or removed as required.
 inputs:
   api-url:
     description: 'Base API URL including the project stub, e.g. https://host-url/api/project-stub'
@@ -127,7 +127,7 @@ runs:
             if [[ -n "$work_item_status_error" && "$work_item_status_error" != "null" ]]; then
               echo "- Work item status error: $work_item_status_error"
             fi
-            jq -r '(.failedWorkItems // [])[]? | "- #\(.workItemId) \(.title)\n  - Not resolved: \(.notResolved)\n  - Missing release note: \(.missingReleaseNote)"' validation.json
+            jq -r '(.failedWorkItems // [])[]? | "- #\(.workItemId) \(.title)\n  - Not resolved: \(.notResolved)\n  - Missing release note: \(.missingReleaseNote)\n  - Unfinished tasks: \(.unfinishedTaskCount // 0)"' validation.json
           } > "$summary_file"
 
           cat "$summary_file" >> "$GITHUB_STEP_SUMMARY"
